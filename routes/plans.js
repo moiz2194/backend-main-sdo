@@ -75,7 +75,33 @@ router.put('/', verifyToken, asyncerror(async (req, res, next) => {
     user.save()
     res.status(200).send({ success: true })
 }));
-
+async function ProfitReferralsTree(user, maxDepth, currentDepth, amount) {
+    if (currentDepth > maxDepth) {
+        console.log("leaving")
+        return;
+    }
+    const referredbyId = user.referredBy;
+    const referredby = await User.findById(referredbyId);
+    if (!referredby) {
+        return
+    }
+    let profit;
+    if (currentDepth == 0) {
+        profit = 0.2;
+    } else if (currentDepth == 1) {
+        profit = 0.15;
+    } else if (currentDepth == 2) {
+        profit = 0.1;
+    } else {
+        return
+    }
+    let profitamount = (amount * profit) / 100
+    referredby.balance += profitamount;
+    await Reward.create({ amount: profitamount, user: referredby._id, type: "Refferal Team Daily Profit" });
+    console.log(`profit added in`, referredby._id, profitamount)
+    referredby.save();
+    ProfitReferralsTree(referredby, maxDepth, currentDepth + 1, amount);
+}
 
 router.post('/startmining', verifyToken, asyncerror(async (req, res, next) => {
     const user = await User.findById(req._id).populate('membership.plan');
@@ -100,11 +126,13 @@ router.post('/startmining', verifyToken, asyncerror(async (req, res, next) => {
                     updatedUser.membership.balance += profit;
                     await Reward.create({ amount: profit, user: updatedUser._id, id: updatedUser.membership._id, type: "Investment Plan" });
                 }
+                ProfitReferralsTree(user, 2, 0, profit)
             } else {
                 let totalbalance = updatedUser.locked_amount + updatedUser.balance;
-                const profit = (totalbalance * 3) / 100;
+                const profit = (totalbalance * 2) / 100;
                 await Reward.create({ amount: profit, user: updatedUser._id, type: "Normal Plan" });
                 updatedUser.balance += profit;
+                ProfitReferralsTree(user, 2, 0, profit)
             }
 
             await updatedUser.save();
