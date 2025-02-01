@@ -106,6 +106,21 @@ async function ProfitReferralsTree(user, maxDepth, currentDepth, amount) {
 router.post('/startmining', verifyToken, asyncerror(async (req, res, next) => {
     const user = await User.findById(req._id).populate('membership.plan');
     const today = new Date();
+    const nowET = moment().tz("America/New_York"); // Get current time in Eastern Time
+    // Get the latest reward for the user
+    const lastReward = await Reward.findOne({ user: user._id })
+        .sort({ createdAt: -1 }) // Get the most recent reward
+        .select("createdAt");
+
+    if (lastReward) {
+        const lastRewardET = moment(lastReward.createdAt).tz("America/New_York");
+
+        // If the last reward was created today, prevent mining
+        if (nowET.isSame(lastRewardET, 'day')) {
+            return res.status(400).send({ success: false, message: "You can only start mining once per day (ET timezone)." });
+        }
+    }
+    // Proceed with starting mining
     user.miningstartdata = today;
     await user.save();
 
@@ -115,10 +130,11 @@ router.post('/startmining', verifyToken, asyncerror(async (req, res, next) => {
             const updatedUser = await User.findById(req._id).populate('membership.plan');
             if (!updatedUser) return;
 
+            let profit = 0;
             if (updatedUser.membership?.plan) {
                 let totalbalance = updatedUser.membership.locked_amount + updatedUser.membership.balance;
-                const profit = (totalbalance * updatedUser.membership.plan.profit) / 100;
-                
+                profit = (totalbalance * updatedUser.membership.plan.profit) / 100;
+
                 if (updatedUser.membership.end_date < today) {
                     updatedUser.balance += updatedUser.membership.balance;
                     updatedUser.membership = null;
@@ -126,15 +142,14 @@ router.post('/startmining', verifyToken, asyncerror(async (req, res, next) => {
                     updatedUser.membership.balance += profit;
                     await Reward.create({ amount: profit, user: updatedUser._id, id: updatedUser.membership._id, type: "Investment Plan" });
                 }
-                ProfitReferralsTree(user, 2, 0, profit)
             } else {
                 let totalbalance = updatedUser.locked_amount + updatedUser.balance;
-                const profit = (totalbalance * 2) / 100;
+                profit = (totalbalance * 2) / 100;
                 await Reward.create({ amount: profit, user: updatedUser._id, type: "Normal Plan" });
                 updatedUser.balance += profit;
-                ProfitReferralsTree(user, 2, 0, profit)
             }
 
+            ProfitReferralsTree(updatedUser, 2, 0, profit);
             await updatedUser.save();
             console.log(`Mining profit distributed for user ${updatedUser._id}`);
         } catch (error) {
