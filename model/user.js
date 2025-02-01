@@ -40,7 +40,7 @@ const userSchema = new mongoose.Schema({
     type: String,
   },
   miningstartdata:{
-    type: String,
+    type: Date,
   },
   membership: {
     id: {
