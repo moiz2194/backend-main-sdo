@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
-const myemail = 'saudiaramco206@gmail.com';
-const mypass = 'vjnoeazncesngave';
+const myemail = 'onedollartreestore@gmail.com';
+const mypass = 'woganmuloxbyoopf';
 // configure nodemailer transport
 const transporter = nodemailer.createTransport({
   service: "gmail",
